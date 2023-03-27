@@ -1,8 +1,11 @@
 import tkinter as tk
+from tkinter import filedialog
 import pygame
+import os
+import requests
+from bs4 import BeautifulSoup
+import random
 
-# Initialize Pygame
-pygame.init()
 
 class SoundBoard:
     def __init__(self, master):
@@ -13,7 +16,7 @@ class SoundBoard:
         self.sounds = {}
 
         # Create a label and entry for file path
-        self.label = tk.Label(master, text="Enter MP3 file path:")
+        self.label = tk.Label(master, text="Enter file path:")
         self.label.grid(row=0, column=0)
         self.filepath_entry = tk.Entry(master)
         self.filepath_entry.grid(row=0, column=1)
@@ -22,20 +25,30 @@ class SoundBoard:
         self.load_button = tk.Button(master, text="Load Sound", command=self.load_sound)
         self.load_button.grid(row=0, column=2)
 
+        # Create playback buttons
+        self.play_button = tk.Button(master, text="Play", command=self.play)
+        self.play_button.grid(row=2, column=0)
+        self.pause_button = tk.Button(master, text="Pause", command=self.pause)
+        self.pause_button.grid(row=2, column=1)
+        self.stop_button = tk.Button(master, text="Stop", command=self.stop)
+        self.stop_button.grid(row=2, column=2)
+        self.rewind_button = tk.Button(master, text="<<", command=self.rewind)
+        self.rewind_button.grid(row=2, column=3)
+        self.slowdown_button = tk.Button(master, text="Slower", command=self.slowdown)
+        self.slowdown_button.grid(row=2, column=4)
+
         # Create a grid of buttons to play the sounds
         self.button_grid = tk.Frame(master)
-        self.button_grid.grid(row=1, column=0, columnspan=3)
+        self.button_grid.grid(row=1, column=0, columnspan=5)
 
-        # Create playback buttons
-        self.rewind_button = tk.Button(master, text="Rewind", command=self.rewind_sound)
-        self.rewind_button.grid(row=2, column=0)
-        self.slowdown_button = tk.Button(master, text="Slow Down", command=self.slowdown_sound)
-        self.slowdown_button.grid(row=2, column=1)
+        # Load 10 Creative Commons sounds on start-up
+        self.load_creative_commons_sounds()
 
     def load_sound(self):
-        # Get the filepath from the file explorer
-        filepath = tk.filedialog.askopenfilename(initialdir="/", title="Select MP3 file", filetypes=(("MP3 files", "*.mp3"), ("all files", "*.*")))
-        
+        # Get the filepath from the file dialog
+        filepath = filedialog.askopenfilename(initialdir=os.getcwd(), title="Select sound file",
+                                               filetypes=(("Sound files", "*.mp3 *.wav *.ogg"), ("all files", "*.*")))
+
         # Load the sound file with Pygame
         sound = pygame.mixer.Sound(filepath)
 
@@ -43,60 +56,29 @@ class SoundBoard:
         self.sounds[filepath] = sound
 
         # Create a new button with the filename as text
-        filename = filepath.split("/")[-1]
+        filename = os.path.basename(filepath)
         button = tk.Button(self.button_grid, text=filename, command=lambda: self.play_sound(filepath))
         button.pack()
 
     def play_sound(self, filepath):
+        # Stop any currently playing sound
+        pygame.mixer.music.stop()
+
         # Get the sound object from the dictionary
         sound = self.sounds[filepath]
 
         # Play the sound
         sound.play()
 
-    def rewind_sound(self):
-        # Stop any currently playing sounds
-        pygame.mixer.stop()
+    def load_creative_commons_sounds(self):
+        # Get a list of Creative Commons sounds from freesound.org
+        page = requests.get("https://freesound.org/search/?q=&f=license%3A%22Creative+Commons+0%22&advanced=0&g=1")
+        soup = BeautifulSoup(page.content, 'html.parser')
+        sound_links = soup.select('.title > a')
 
-        # Get the current playback position
-        current_pos = pygame.mixer.music.get_pos()
-
-        # Rewind the sound by 5 seconds (5000 milliseconds)
-        new_pos = current_pos - 5000
-        if new_pos < 0:
-            new_pos = 0
-
-        # Set the new playback position
-        pygame.mixer.music.set_pos(new_pos)
-
-        # Resume playback
-        pygame.mixer.music.unpause()
-
-    def slowdown_sound(self):
-        # Stop any currently playing sounds
-        pygame.mixer.stop()
-
-        # Get the current playback rate
-        current_rate = pygame.mixer.music.get_rate()
-
-        # Slow down the playback rate by 50%
-        new_rate = int(current_rate * 0.5)
-
-        # Set the new playback rate
-        pygame.mixer.music.set_rate(new_rate)
-
-        # Resume playback
-        pygame.mixer.music.unpause()
-
-
-# Create the root window
-root = tk.Tk()
-
-# Create the sound board
-sound_board = SoundBoard(root)
-
-# Start the main event loop
-root.mainloop()
-
-# Quit Pygame when the program is finished
-pygame.quit()
+        # Load up to 10 random sounds from the list
+        random.shuffle(sound_links)
+        for link in sound_links[:10]:
+            sound_url = "https://freesound.org" + link['href'] + "download"
+            sound_name = link['href'].split("/")[-2] + ".wav"
+           
